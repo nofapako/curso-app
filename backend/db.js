@@ -1,46 +1,47 @@
-const Database = require('better-sqlite3');
-const path = require('path');
+const { Pool } = require('pg');
 
-const db = new Database(path.join(__dirname, 'curso.db'));
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL && process.env.DATABASE_URL.includes('railway.internal') ? false : { rejectUnauthorized: false }
+});
 
-// Enable WAL mode for better performance
-db.pragma('journal_mode = WAL');
-
-// Create tables
-db.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    email TEXT UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL,
-    registered_at TEXT NOT NULL DEFAULT (datetime('now'))
-  );
-
-  CREATE TABLE IF NOT EXISTS lessons (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    day_number INTEGER UNIQUE NOT NULL,
-    title TEXT NOT NULL,
-    description TEXT,
-    video_url TEXT NOT NULL
-  );
-`);
-
-// Seed lessons if table is empty
-const count = db.prepare('SELECT COUNT(*) as n FROM lessons').get();
-if (count.n === 0) {
-  const insert = db.prepare(
-    'INSERT INTO lessons (day_number, title, description, video_url) VALUES (?, ?, ?, ?)'
-  );
-
-  const lessons = [
-    [1, 'Bienvenida al curso', 'Introducción y objetivos del curso.', 'https://www.youtube.com/embed/dQw4w9WgXcQ'],
-    [2, 'Fundamentos básicos', 'Conceptos esenciales que necesitas saber.', 'https://www.youtube.com/embed/dQw4w9WgXcQ'],
-    [3, 'Práctica guiada', 'Ejercicio práctico con ejemplos reales.', 'https://www.youtube.com/embed/dQw4w9WgXcQ'],
-    [4, 'Casos de uso', 'Aplicaciones reales del tema.', 'https://www.youtube.com/embed/dQw4w9WgXcQ'],
-    [5, 'Proyecto final', 'Construye tu primer proyecto completo.', 'https://www.youtube.com/embed/dQw4w9WgXcQ'],
-  ];
-
-  lessons.forEach((l) => insert.run(...l));
-  console.log('Lessons seeded successfully.');
+async function init() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      email TEXT UNIQUE NOT NULL,
+      password TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS lessons (
+      id SERIAL PRIMARY KEY,
+      day_number INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT,
+      video_url TEXT
+    )
+  `);
+  const { rows } = await pool.query('SELECT COUNT(*) FROM lessons');
+  if (parseInt(rows[0].count) === 0) {
+    const lessons = [
+      [1, 'Corte radical', 'Día 1', 'https://www.youtube.com/embed/R6M7mLvbQj4'],
+      [2, 'Entorno', 'Día 2', 'https://www.youtube.com/embed/fC2naTjhMsA'],
+      [3, 'Protocolo', 'Día 3', 'https://www.youtube.com/embed/1Q5Ohx8WT8c'],
+      [4, 'Vital Behavior', 'Día 4', 'https://www.youtube.com/embed/6A33EaYQYmA'],
+      [5, 'Neuroplasticidad', 'Día 5', 'https://www.youtube.com/embed/qVY_9iTSqH0'],
+      [6, 'Consolidación', 'Día 6', 'https://www.youtube.com/embed/2Cj7NNKm_Vg'],
+      [7, 'Extremo', 'Día 7', 'https://www.youtube.com/embed/br5b4HTET_I'],
+      [9, 'Hola', 'Día 9', 'https://www.youtube.com/embed/6yL4H8V3VA0'],
+    ];
+    for (const [day, title, desc, url] of lessons) {
+      await pool.query('INSERT INTO lessons (day_number, title, description, video_url) VALUES ($1, $2, $3, $4)', [day, title, desc, url]);
+    }
+  }
+  console.log('DB ready');
 }
 
-module.exports = db;
+init().catch(console.error);
+
+module.exports = pool;
