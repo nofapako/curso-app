@@ -4,7 +4,7 @@ const pool = require('../db');
 
 router.get('/', auth, async (req, res) => {
   try {
-    const { rows: user } = await pool.query('SELECT created_at FROM users WHERE id = $1', [req.userId]);
+    const { rows: user } = await pool.query('SELECT created_at FROM users WHERE id = $1', [req.user.id]);
     const createdAt = new Date(user[0].created_at);
     const now = new Date();
     const daysSince = Math.floor((now - createdAt) / (1000 * 60 * 60 * 24));
